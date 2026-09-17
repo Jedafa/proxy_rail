@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Ноды{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h5 class="mb-0"><i class="bi bi-server"></i> Ноды <span class="text-secondary fs-6">(прокси-серверы)</span></h5>
+  <button class="btn btn-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#addnode">
+    <i class="bi bi-plus-lg"></i> Добавить</button>
+</div>
+
+<div class="collapse mb-3" id="addnode">
+  <div class="card"><div class="card-body">
+    <form method="post" action="/nodes">
+      <div class="row g-2">
+        <div class="col-md-2"><input class="form-control" name="name" placeholder="Имя (node1)"></div>
+        <div class="col-md-4"><input class="form-control" name="control_url"
+             placeholder="https://node1-production.up.railway.app"></div>
+        <div class="col-md-2"><input class="form-control" name="token" placeholder="NODE_TOKEN"></div>
+        <div class="col-md-2"><input class="form-control" name="proxy_host"
+             placeholder="host прокси (TCP Railway)"></div>
+        <div class="col-md-1"><input class="form-control" name="proxy_http_port" type="number" placeholder="HTTP"></div>
+        <div class="col-md-1"><input class="form-control" name="proxy_socks_port" type="number" placeholder="SOCKS"></div>
+      </div>
+      <button class="btn btn-success btn-sm mt-2">Сохранить</button>
+    </form>
+  </div></div>
+</div>
+
+<table class="table align-middle">
+  <thead><tr><th>Имя</th><th>Control URL</th><th>Прокси</th><th>Статус</th><th class="text-end">Действия</th></tr></thead>
+  <tbody>
+  {% for n in nodes %}
+    <tr>
+      <td class="fw-semibold">{{ n.name }}</td>
+      <td class="small text-secondary">{{ n.control_url }}</td>
+      <td class="small"><code>{{ n.proxy_host or '—' }}:{{ n.proxy_http_port }}/{{ n.proxy_socks_port }}</code></td>
+      <td>{% if n.status == 'online' %}<span class="badge bg-success">online</span>
+          {% elif n.status == 'offline' %}<span class="badge bg-danger">offline</span>
+          {% else %}<span class="badge bg-secondary">?</span>{% endif %}</td>
+      <td class="text-end">
+        <form method="post" action="/nodes/{{ n.id }}/check" class="d-inline">
+          <button class="btn btn-sm btn-outline-primary" title="Проверить"><i class="bi bi-broadcast"></i></button></form>
+        <form method="post" action="/nodes/{{ n.id }}/sync" class="d-inline">
+          <button class="btn btn-sm btn-outline-secondary" title="Синхронизировать прокси на ноду"><i class="bi bi-cloud-arrow-up"></i></button></form>
+        <form method="post" action="/nodes/{{ n.id }}/delete" class="d-inline"
+              onsubmit="return confirm('Удалить ноду и все её прокси?')">
+          <button class="btn btn-sm btn-outline-danger" title="Удалить"><i class="bi bi-trash"></i></button></form>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5" class="text-center text-secondary py-4">Пока пусто — добавьте первую ноду</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<div class="alert alert-secondary small">
+  <b>Подсказка:</b> Control URL — адрес control API ноды (домен Railway-сервиса с <code>ROLE=node</code>),
+  токен — значение <code>NODE_TOKEN</code> этой ноды. Host и порты прокси — это внешний
+  <code>host:port</code> из TCP Proxy Railway (отдельно для HTTP и SOCKS5).
+</div>
+{% endblock %}

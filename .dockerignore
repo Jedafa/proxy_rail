@@ -1,0 +1,10 @@
+.git
+.gitignore
+data
+*.db
+.env
+.venv
+venv
+__pycache__
+nohup.out
+docker-compose.yml

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Вход{% endblock %}
+{% block content %}
+<div class="row justify-content-center mt-5">
+  <div class="col-md-4">
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title mb-3"><i class="bi bi-shield-lock"></i> Вход в панель</h5>
+        {% if err %}<div class="alert alert-danger py-2">{{ err }}</div>{% endif %}
+        <form method="post" action="/login">
+          <input class="form-control mb-3" type="password" name="password"
+                 placeholder="Пароль администратора" autofocus>
+          <button class="btn btn-primary w-100">Войти</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

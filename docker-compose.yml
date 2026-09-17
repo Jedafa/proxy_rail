@@ -1,0 +1,37 @@
+services:
+  core:
+    build: .
+    image: proxy_rail:latest
+    container_name: pr-core
+    environment:
+      ROLE: core
+      PORT: "8000"
+      DATA_DIR: /data
+      ADMIN_PASSWORD: "change-me-admin"
+      SESSION_SECRET: "change-me-random-secret"
+      BOT_TOKEN: ""
+      ADMIN_TG_IDS: ""
+      REG_TOKEN: "change-me-reg-token"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data/core:/data
+
+  node1:
+    build: .
+    image: proxy_rail:latest
+    container_name: pr-node1
+    environment:
+      ROLE: node
+      PORT: "8080"
+      DATA_DIR: /data
+      NODE_TOKEN: "change-me-node-token"
+      NODE_NAME: node1
+      HTTP_PROXY_PORT: "8888"
+      SOCKS_PORT: "1080"
+    ports:
+      - "8080:8080"   # control API
+      - "8888:8888"   # HTTP/HTTPS proxy
+      - "1080:1080"   # SOCKS5
+    volumes:
+      - ./data/node1:/data

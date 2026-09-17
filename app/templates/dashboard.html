@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Дашборд{% endblock %}
+{% block content %}
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="card text-center"><div class="card-body">
+      <div class="display-6 fw-bold text-success">{{ online }}/{{ nodes_count }}</div>
+      <div class="text-secondary">нод онлайн</div>
+    </div></div>
+  </div>
+  <div class="col-md-4">
+    <div class="card text-center"><div class="card-body">
+      <div class="display-6 fw-bold">{{ creds_count }}</div>
+      <div class="text-secondary">прокси-доступов</div>
+    </div></div>
+  </div>
+  <div class="col-md-4">
+    <div class="card text-center"><div class="card-body">
+      <div class="display-6 fw-bold">{{ nodes_count }}</div>
+      <div class="text-secondary">серверов всего</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-activity"></i> Статус нод</span>
+    <form method="post" action="/nodes/check_all" class="d-inline">
+      <button class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-repeat"></i> Проверить все</button>
+    </form>
+  </div>
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0 align-middle">
+      <thead><tr><th>Имя</th><th>Control URL</th><th>Прокси-адрес</th><th>Статус</th><th>Проверено</th></tr></thead>
+      <tbody>
+      {% for n in nodes %}
+        <tr>
+          <td class="fw-semibold">{{ n.name }}</td>
+          <td><a href="{{ n.control_url }}" target="_blank" class="link-secondary">{{ n.control_url }}</a></td>
+          <td><code>{{ n.proxy_host or '—' }}</code>
+              <span class="text-secondary small">http:{{ n.proxy_http_port }} socks:{{ n.proxy_socks_port }}</span></td>
+          <td>{% if n.status == 'online' %}<span class="badge bg-success">online</span>
+              {% elif n.status == 'offline' %}<span class="badge bg-danger">offline</span>
+              {% else %}<span class="badge bg-secondary">?</span>{% endif %}</td>
+          <td class="text-secondary small">{{ n.last_check or '—' }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5" class="text-secondary text-center py-4">
+          Нод пока нет — добавьте на странице <a href="/nodes">Ноды</a></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="alert alert-secondary small">
+  <b>Как пользоваться:</b> добавьте ноды (сервисы Railway с <code>ROLE=node</code>) на странице
+  «Ноды» → создайте прокси-доступы в разделе «Прокси» → выдавайте ссылки клиентам или используйте
+  сами. Telegram-бот дублирует те же команды: /nodes, /newproxy, /proxies.
+</div>
+{% endblock %}
