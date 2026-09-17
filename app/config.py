@@ -16,7 +16,7 @@ os.makedirs(DATA_DIR, exist_ok=True)
 CORE_DB = os.getenv("CORE_DB", os.path.join(DATA_DIR, "core.db"))
 NODE_DB = os.getenv("NODE_DB", os.path.join(DATA_DIR, "node.db"))
 
-APP_VERSION = "0.2.0"
+APP_VERSION = "0.2.1"
 
 # ---------------- NODE (прокси-сервер) ----------------
 # Токен для управления нодой (core -> node API). Обязателен для продакшена.

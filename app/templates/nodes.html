@@ -21,7 +21,7 @@
              placeholder="https://node1-production.up.railway.app"></div>
         <div class="col-md-2"><input class="form-control" name="token" placeholder="NODE_TOKEN"></div>
         <div class="col-md-2"><input class="form-control" name="proxy_host"
-             placeholder="host прокси (TCP Railway)"></div>
+             placeholder="host прокси (TCP Railway или свой домен)"></div>
         <div class="col-md-1"><input class="form-control" name="proxy_http_port" type="number" placeholder="HTTP"></div>
         <div class="col-md-1"><input class="form-control" name="proxy_socks_port" type="number" placeholder="SOCKS"></div>
       </div>
@@ -111,7 +111,9 @@
 
 <div class="alert alert-secondary small">
   <b>Прокси-нода (Railway):</b> Control URL — домен Railway-сервиса с <code>ROLE=node</code>,
-  токен — его <code>NODE_TOKEN</code>, host:порты — внешние TCP-прокси Railway (отдельно HTTP и SOCKS5).<br>
+  токен — его <code>NODE_TOKEN</code>, host:порты — внешние TCP-прокси Railway (отдельно HTTP и SOCKS5).
+  В host можно вписать свой домен: сделайте CNAME <code>px1.ваш-домен</code> → rlwy-хост TCP-прокси
+  и укажите его с теми же портами — все ссылки будут на вашем домене (подробно: README, раздел «Свой домен»).<br>
   <b>WEB-прокси (Telegram):</b> собственный домен с HTTPS/443 и сервером
   <code>tproxy-server</code> — деплой по шагам в <code>tgweb/README.md</code>.
   Ссылка откроется в Telegram Desktop 7.1+ / свежих мобильных клиентах.

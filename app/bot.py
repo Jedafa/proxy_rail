@@ -95,7 +95,9 @@ async def cmd_addnode(m: Message):
         await m.answer(
             "Формат:\n<code>/addnode Имя|URL|Токен|Host|HTTPпорт|SOCKSпорт</code>\n\n"
             "Пример:\n<code>/addnode node1|https://node1-production.up.railway.app|"
-            "secret-token|xxx.up.rlwy.net|31234|45678</code>",
+            "secret-token|px1.mydomain.com|31234|45678</code>\n\n"
+            "Host — что увидят клиенты: TCP-хост Railway (xxx.up.rlwy.net)\n"
+            "или ваш домен — CNAME на этот хост (README, раздел «Свой домен»)",
             parse_mode="HTML")
         return
     items = [s.strip() for s in parts[1].split("|")]
