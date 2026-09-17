@@ -6,7 +6,7 @@ def _bool(v: str) -> bool:
     return str(v).strip().lower() in ("1", "true", "yes", "on")
 
 
-# Роль процесса: core (админка + бот) | node (прокси-сервер) | all (всё в одном, для локальной отладки)
+# Роль процесса: web (админка) | bot (TG-бот) | node (прокси-сервер) | all (всё в одном, для локальной отладки)
 ROLE = os.getenv("ROLE", "all").lower()
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8000"))
@@ -29,9 +29,8 @@ ALLOW_ANONYMOUS = _bool(os.getenv("ALLOW_ANONYMOUS", "false"))
 MAX_BODY = int(os.getenv("MAX_BODY_MB", "50")) * 1024 * 1024
 IDLE_TIMEOUT = int(os.getenv("IDLE_TIMEOUT", "600"))
 
-# Авто-регистрация ноды в core (необязательно)
+# Авто-регистрация ноды в web-панели (необязательно)
 CORE_URL = os.getenv("CORE_URL", "").rstrip("/")
-REG_TOKEN = os.getenv("REG_TOKEN", "")
 NODE_NAME = os.getenv("NODE_NAME", "")
 # Публичный адрес ноды (для авто-регистрации в core)
 PUBLIC_CONTROL_URL = os.getenv("PUBLIC_CONTROL_URL", "").rstrip("/")
@@ -39,10 +38,22 @@ PUBLIC_PROXY_HOST = os.getenv("PUBLIC_PROXY_HOST", "")
 PUBLIC_HTTP_PORT = int(os.getenv("PUBLIC_HTTP_PORT", "0"))
 PUBLIC_SOCKS_PORT = int(os.getenv("PUBLIC_SOCKS_PORT", "0"))
 
-# ---------------- CORE (админка + бот) ----------------
+# ---------------- WEB + BOT ----------------
+# Токен для внутреннего API веб-панели (бот -> web). Должен совпадать в обоих сервисах.
+BOT_API_TOKEN = os.getenv("BOT_API_TOKEN", "")
+if ROLE == "all" and not BOT_API_TOKEN:
+    BOT_API_TOKEN = "local-dev-bot-token"
+
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 SESSION_SECRET = os.getenv("SESSION_SECRET", "") or secrets.token_hex(32)
+REG_TOKEN = os.getenv("REG_TOKEN", "")
+
+# ---------------- BOT ----------------
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 ADMIN_TG_IDS = {
     int(x) for x in os.getenv("ADMIN_TG_IDS", "").replace(" ", "").split(",") if x.strip().isdigit()
 }
+# Адрес веб-панели для бота (в режиме all — локальный)
+WEB_URL = os.getenv("WEB_URL", "").rstrip("/")
+if ROLE == "all" and not WEB_URL:
+    WEB_URL = f"http://127.0.0.1:{PORT}"

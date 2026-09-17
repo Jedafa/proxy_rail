@@ -133,15 +133,16 @@ async def sync_node(node: dict) -> int:
 
 # ------------------------------------------------------------- форматирование
 
-def build_links(node: dict, username: str, password: str) -> str:
+def link_set(node: dict, username: str, password: str) -> dict:
+    """Набор готовых ссылок для клиента (web-админка, бот)."""
     host = node["proxy_host"] or "NODE_HOST_NOT_SET"
     hp = node["proxy_http_port"] or 0
     sp = node["proxy_socks_port"] or 0
-    return "\n".join([
-        f"HTTP/HTTPS: http://{username}:{password}@{host}:{hp}",
-        f"SOCKS5: socks5://{username}:{password}@{host}:{sp}",
-        f"Telegram: https://t.me/socks?server={host}&port={sp}&user={username}&pass={password}",
-    ])
+    return {
+        "http": f"http://{username}:{password}@{host}:{hp}",
+        "socks": f"socks5://{username}:{password}@{host}:{sp}",
+        "tg": f"https://t.me/socks?server={host}&port={sp}&user={username}&pass={password}",
+    }
 
 
 def fmt_bytes(n) -> str:

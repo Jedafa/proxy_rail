@@ -1,21 +1,34 @@
 services:
-  core:
+  web:
     build: .
     image: proxy_rail:latest
-    container_name: pr-core
+    container_name: pr-web
     environment:
-      ROLE: core
+      ROLE: web
       PORT: "8000"
       DATA_DIR: /data
       ADMIN_PASSWORD: "change-me-admin"
       SESSION_SECRET: "change-me-random-secret"
-      BOT_TOKEN: ""
-      ADMIN_TG_IDS: ""
+      BOT_API_TOKEN: "change-me-bot-token"
       REG_TOKEN: "change-me-reg-token"
     ports:
       - "8000:8000"
     volumes:
-      - ./data/core:/data
+      - ./data/web:/data
+
+  bot:
+    build: .
+    image: proxy_rail:latest
+    container_name: pr-bot
+    depends_on:
+      - web
+    environment:
+      ROLE: bot
+      PORT: "8000"
+      BOT_TOKEN: ""
+      ADMIN_TG_IDS: ""
+      WEB_URL: "http://web:8000"
+      BOT_API_TOKEN: "change-me-bot-token"
 
   node1:
     build: .
