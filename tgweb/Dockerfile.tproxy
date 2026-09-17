@@ -1,0 +1,22 @@
+# Сборка официального релея WEB-прокси Telegram (telegramdesktop/tproxy-server)
+# из закреплённого коммита. Релей — статический Go-бинарник.
+FROM golang:1.22-bookworm AS build
+
+# Закреплённый коммит официального репозитория (проверьте перед апгрейдом:
+# https://github.com/telegramdesktop/tproxy-server/commits )
+ARG TPROXY_COMMIT=acc252ece3a25c29e9b83f608499a5567a33ab2a
+
+RUN git clone https://github.com/telegramdesktop/tproxy-server /src \
+    && cd /src && git checkout "${TPROXY_COMMIT}"
+
+WORKDIR /src
+RUN CGO_ENABLED=0 go test ./... \
+    && CGO_ENABLED=0 go build -trimpath -o /out/tproxy-server ./cmd/tproxy-server
+
+FROM debian:bookworm-slim
+COPY --from=build /out/tproxy-server /usr/local/bin/tproxy-server
+COPY tproxy-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh && mkdir -p /data /srv/site
+VOLUME ["/data"]
+EXPOSE 8080 8081
+ENTRYPOINT ["/entrypoint.sh"]

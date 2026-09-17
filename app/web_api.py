@@ -19,7 +19,8 @@ from pydantic import BaseModel
 from . import config, db, security
 from .core_service import (check_node, create_cred, delete_cred, delete_node, get_cred,
                            get_cred_by_username, get_node, get_node_by_name, link_set,
-                           list_creds, list_nodes, node_request, sync_node, upsert_node)
+                           list_creds, list_nodes, node_request, sync_node, tgweb_links,
+                           upsert_node)
 
 log = logging.getLogger("web")
 
@@ -143,8 +144,9 @@ async def nodes_page(request: Request, msg: str = "", err: str = ""):
     g = _guard(request)
     if g:
         return g
-    return templates.TemplateResponse(request, "nodes.html", _ctx(request, nodes=list_nodes(),
-                                                                  msg=msg, err=err))
+    return templates.TemplateResponse(
+        request, "nodes.html", _ctx(request, nodes=list_nodes(), tgweb_links=tgweb_links,
+                                    msg=msg, err=err))
 
 
 @app.post("/nodes")
@@ -162,6 +164,29 @@ async def nodes_add(request: Request, name: str = Form(""), control_url: str = F
     if node:
         await check_node(node)
     return _redirect("/nodes", msg=f"Нода «{name}» сохранена")
+
+
+@app.post("/nodes/web")
+async def nodes_add_web(request: Request, name: str = Form(""), web_host: str = Form(""),
+                        web_secret: str = Form("")):
+    """Добавление WEB-прокси ноды (новый тип Telegram, авг. 2026).
+
+    Control API у такой ноды нет: host — домен с HTTPS (порт всегда 443),
+    секрет — клиентский MTProxy-секрет (hex 32 символа).
+    """
+    g = _guard(request)
+    if g:
+        return g
+    name = name.strip()
+    host = web_host.strip().rstrip("/")
+    secret = web_secret.strip().lower()
+    if not name or not host or not secret:
+        return _redirect("/nodes", err="Заполните имя, домен и секрет WEB-прокси")
+    upsert_node(name, "", secret, host, 0, 0, kind="tgweb")
+    node = get_node_by_name(name)
+    if node:
+        await check_node(node)
+    return _redirect("/nodes", msg=f"WEB-прокси «{name}» сохранён — ссылки на странице нод")
 
 
 @app.post("/nodes/{node_id}/delete")
@@ -280,11 +305,12 @@ def _bot_ok(request: Request) -> None:
 
 class BotNodeIn(BaseModel):
     name: str
-    control_url: str
+    control_url: str = ""
     token: str
     proxy_host: str = ""
     proxy_http_port: int = 0
     proxy_socks_port: int = 0
+    kind: str = "proxy"
 
 
 class BotCredIn(BaseModel):
@@ -303,13 +329,26 @@ async def api_bot_nodes(request: Request):
 @app.post("/api/bot/nodes")
 async def api_bot_nodes_add(request: Request, data: BotNodeIn):
     _bot_ok(request)
-    if not data.name.strip() or not data.control_url.strip() or not data.token.strip():
-        raise HTTPException(400, "name, control_url and token are required")
-    upsert_node(data.name.strip(), data.control_url.strip(), data.token.strip(),
-                data.proxy_host.strip(), data.proxy_http_port, data.proxy_socks_port)
-    node = get_node_by_name(data.name.strip())
+    name = data.name.strip()
+    kind = "tgweb" if data.kind == "tgweb" else "proxy"
+    if not name or not data.token.strip():
+        raise HTTPException(400, "name and token are required")
+    if kind == "proxy" and not data.control_url.strip():
+        raise HTTPException(400, "control_url is required for proxy nodes")
+    upsert_node(name, data.control_url.strip(), data.token.strip().lower(),
+                data.proxy_host.strip(), data.proxy_http_port, data.proxy_socks_port,
+                kind=kind)
+    node = get_node_by_name(name)
     online = await check_node(node) if node else False
-    return {"ok": True, "online": online}
+    log.info("бот добавил ноду %s (kind=%s)", name, kind)
+    return {"ok": True, "online": online, "kind": kind}
+
+
+@app.get("/api/bot/tgweb")
+async def api_bot_tgweb(request: Request):
+    _bot_ok(request)
+    web_nodes = [n for n in list_nodes() if n.get("kind") == "tgweb"]
+    return {"nodes": [{**n, "links": tgweb_links(n)} for n in web_nodes]}
 
 
 @app.post("/api/bot/nodes/check_all")
@@ -329,7 +368,21 @@ async def api_bot_node_sync(name: str, request: Request):
     node = get_node_by_name(name)
     if not node:
         raise HTTPException(404, "node not found")
+    if node.get("kind") == "tgweb":
+        return {"synced": 0, "skipped": True,
+                "detail": "WEB-ноде нечего синхронизировать: секрет один на весь сервер"}
     return {"synced": await sync_node(node)}
+
+
+@app.delete("/api/bot/nodes/{name}")
+async def api_bot_node_delete(name: str, request: Request):
+    _bot_ok(request)
+    node = get_node_by_name(name)
+    if not node:
+        raise HTTPException(404, "node not found")
+    delete_node(node["id"])
+    log.info("бот удалил ноду %s", name)
+    return {"ok": True}
 
 
 @app.post("/api/bot/creds")
@@ -367,6 +420,11 @@ async def api_bot_stats(request: Request):
     nodes_res: list[dict] = []
     total: dict[str, list[int]] = {}
     for n in list_nodes():
+        if n.get("kind") == "tgweb":
+            # трафик WEB-нод считаем на их сервере, сюда не транслируем
+            nodes_res.append({"name": n["name"], "ok": True, "rx": 0, "tx": 0,
+                              "conns": 0, "kind": "tgweb"})
+            continue
         try:
             r = await node_request(n, "GET", "/api/stats", timeout=8)
             if r.status_code != 200:

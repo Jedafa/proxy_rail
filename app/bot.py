@@ -27,6 +27,9 @@ HELP_TEXT = (
     "/newproxy &lt;нода&gt; [метка] — создать прокси\n"
     "/proxies — список прокси\n"
     "/delproxy &lt;логин&gt; — удалить прокси\n"
+    "/addtgweb — добавить WEB-прокси для Telegram\n"
+    "/tgweb — список WEB-прокси и ссылки\n"
+    "/delnode &lt;имя&gt; — удалить ноду\n"
     "/sync &lt;нода&gt; — перезалить прокси на ноду\n"
     "/stats — трафик по нодам\n"
     "/help — эта справка"
@@ -118,6 +121,86 @@ async def cmd_addnode(m: Message):
     else:
         await m.answer(f"🟠 Нода <b>{html.escape(name)}</b> добавлена, но не отвечает — "
                        "проверьте URL и токен (/nodes)", parse_mode="HTML")
+
+
+@router.message(Command("addtgweb"))
+async def cmd_addtgweb(m: Message):
+    """WEB-прокси — новый тип прокси Telegram (Telegram Desktop 7.1+, авг. 2026).
+
+    MTProxy-трафик, упакованный в HTTPS/WebSocket. Нужен свой домен и сервер
+    с tproxy-server (см. tgweb/ в репозитории). Порт всегда 443.
+    """
+    if not _admin(m):
+        return await _deny(m)
+    parts = (m.text or "").split(maxsplit=1)
+    if len(parts) < 2:
+        await m.answer(
+            "Формат:\n<code>/addtgweb Имя|Домен|Секрет</code>\n\n"
+            "Домен — с HTTPS на 443 (порт не указывается), секрет — 32 hex-символа\n"
+            "(<code>openssl rand -hex 16</code>). Деплой сервера: см. tgweb/README.md\n\n"
+            "Пример:\n<code>/addtgweb web1|tg1.example.com|000102030405060708090a0b0c0d0e0f</code>",
+            parse_mode="HTML")
+        return
+    items = [s.strip() for s in parts[1].split("|")]
+    if len(items) != 3:
+        await m.answer("Нужно ровно 3 значения через <code>|</code>: Имя|Домен|Секрет",
+                       parse_mode="HTML")
+        return
+    name, host, secret = items
+    r = await _call(m, "POST", "/api/bot/nodes", json={
+        "name": name, "control_url": "", "token": secret,
+        "proxy_host": host, "kind": "tgweb"})
+    if r is None:
+        return
+    ok = r.json().get("online", False)
+    if ok:
+        await m.answer(f"🟢 WEB-прокси <b>{html.escape(name)}</b> добавлен. "
+                       "Ссылки: /tgweb", parse_mode="HTML")
+    else:
+        await m.answer(f"🟠 WEB-прокси <b>{html.escape(name)}</b> сохранён, но данные "
+                       "неполные — проверьте домен и секрет (/tgweb)", parse_mode="HTML")
+
+
+@router.message(Command("tgweb"))
+async def cmd_tgweb(m: Message):
+    if not _admin(m):
+        return await _deny(m)
+    r = await _call(m, "GET", "/api/bot/tgweb")
+    if r is None:
+        return
+    rows = r.json().get("nodes", [])
+    if not rows:
+        await m.answer("WEB-прокси пока нет. Добавьте: /addtgweb\n\n"
+                       "Это новый тип прокси Telegram (MTProxy внутри HTTPS) — "
+                       "для него нужен свой домен и сервер, см. tgweb/README.md в репо")
+        return
+    for x in rows:
+        links = x.get("links", {})
+        await m.answer(
+            f"✈️ <b>{html.escape(x['name'])}</b> (WEB-прокси)\n"
+            f"Сервер: <code>{html.escape(links.get('server', '—'))}</code>\n\n"
+            f"Открыть в Telegram:\n{html.escape(links.get('tme', '—'))}\n\n"
+            f"Альтернативная:\n<code>{html.escape(links.get('tg', '—'))}</code>\n\n"
+            f"Секрет для ручного ввода: <code>{html.escape(links.get('secret', '—'))}</code>",
+            parse_mode="HTML",
+            link_preview_options=LinkPreviewOptions(is_disabled=True))
+
+
+@router.message(Command("delnode"))
+async def cmd_delnode(m: Message):
+    if not _admin(m):
+        return await _deny(m)
+    parts = (m.text or "").split(maxsplit=1)
+    if len(parts) < 2:
+        await m.answer("Формат: <code>/delnode &lt;имя&gt;</code> — удалит ноду любого типа "
+                       "и все её прокси", parse_mode="HTML")
+        return
+    name = parts[1].strip()
+    r = await _call(m, "DELETE", "/api/bot/nodes/" + quote(name, safe=""))
+    if r is None:
+        return
+    await m.answer(f"🗑 Нода <b>{html.escape(name)}</b> удалена вместе с её прокси",
+                   parse_mode="HTML")
 
 
 @router.message(Command("nodes"))

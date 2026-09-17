@@ -2,13 +2,18 @@
 {% block title %}Ноды{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h5 class="mb-0"><i class="bi bi-server"></i> Ноды <span class="text-secondary fs-6">(прокси-серверы)</span></h5>
-  <button class="btn btn-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#addnode">
-    <i class="bi bi-plus-lg"></i> Добавить</button>
+  <h5 class="mb-0"><i class="bi bi-server"></i> Ноды</h5>
+  <div class="btn-group">
+    <button class="btn btn-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#addnode">
+      <i class="bi bi-plus-lg"></i> Прокси-нода (Railway)</button>
+    <button class="btn btn-success btn-sm" data-bs-toggle="collapse" data-bs-target="#addweb">
+      <i class="bi bi-stars"></i> WEB-прокси (Telegram)</button>
+  </div>
 </div>
 
 <div class="collapse mb-3" id="addnode">
   <div class="card"><div class="card-body">
+    <div class="small text-secondary mb-2">HTTP/HTTPS/SOCKS5 нода: Railway-сервис с <code>ROLE=node</code></div>
     <form method="post" action="/nodes">
       <div class="row g-2">
         <div class="col-md-2"><input class="form-control" name="name" placeholder="Имя (node1)"></div>
@@ -25,14 +30,65 @@
   </div></div>
 </div>
 
+<div class="collapse mb-3" id="addweb">
+  <div class="card"><div class="card-body">
+    <div class="small text-secondary mb-2">
+      WEB-прокси Telegram (новый тип, авг. 2026): MTProxy внутри HTTPS/WebSocket.
+      Порт всегда 443, порт указывать не нужно. Домен — тот, где развёрнут
+      <code>tproxy-server</code> (см. <code>tgweb/README.md</code>). Секрет — 32 hex-символа.
+    </div>
+    <form method="post" action="/nodes/web">
+      <div class="row g-2">
+        <div class="col-md-3"><input class="form-control" name="name" placeholder="Имя (web1)"></div>
+        <div class="col-md-4"><input class="form-control" name="web_host"
+             placeholder="tg1.example.com (или домен/base-path)"></div>
+        <div class="col-md-5"><input class="form-control" name="web_secret"
+             placeholder="Секрет (openssl rand -hex 16)"></div>
+      </div>
+      <button class="btn btn-success btn-sm mt-2">Сохранить</button>
+    </form>
+  </div></div>
+</div>
+
 <table class="table align-middle">
-  <thead><tr><th>Имя</th><th>Control URL</th><th>Прокси</th><th>Статус</th><th class="text-end">Действия</th></tr></thead>
+  <thead><tr><th>Имя</th><th>Тип</th><th>Адрес</th><th>Статус</th><th class="text-end">Действия</th></tr></thead>
   <tbody>
   {% for n in nodes %}
+    {% if n.kind == 'tgweb' %}
+    {% set L = tgweb_links(n) %}
     <tr>
       <td class="fw-semibold">{{ n.name }}</td>
-      <td class="small text-secondary">{{ n.control_url }}</td>
-      <td class="small"><code>{{ n.proxy_host or '—' }}:{{ n.proxy_http_port }}/{{ n.proxy_socks_port }}</code></td>
+      <td><span class="badge bg-info text-dark">WEB TG</span></td>
+      <td class="small">
+        <code>{{ L.server }}</code>
+        <div class="small text-secondary mt-1">Секрет: <code>{{ L.secret }}</code></div>
+        <div class="small mt-1 text-break" style="max-width: 480px;">
+          <a href="{{ L.tme }}" rel="noopener noreferrer nofollow">{{ L.tme }}</a>
+        </div>
+        <div class="small text-secondary text-break" style="max-width: 480px;">{{ L.tg }}</div>
+      </td>
+      <td>{% if n.status == 'online' %}<span class="badge bg-success">готов</span>
+          {% else %}<span class="badge bg-danger">не настроен</span>{% endif %}</td>
+      <td class="text-end">
+        <button class="btn btn-sm btn-outline-secondary" title="Копировать ссылку t.me"
+                data-copy="{{ L.tme|e }}">
+          <i class="bi bi-clipboard"></i></button>
+        <button class="btn btn-sm btn-outline-secondary" title="Копировать tg:// ссылку"
+                data-copy="{{ L.tg|e }}">
+          <i class="bi bi-copy"></i></button>
+        <form method="post" action="/nodes/{{ n.id }}/delete" class="d-inline"
+              onsubmit="return confirm('Удалить WEB-прокси «{{ n.name }}»?')">
+          <button class="btn btn-sm btn-outline-danger" title="Удалить"><i class="bi bi-trash"></i></button></form>
+      </td>
+    </tr>
+    {% else %}
+    <tr>
+      <td class="fw-semibold">{{ n.name }}</td>
+      <td><span class="badge bg-secondary">HTTP/SOCKS</span></td>
+      <td class="small">
+        <div><code>{{ n.control_url or '—' }}</code></div>
+        <div class="text-secondary">прокси: <code>{{ n.proxy_host or '—' }}:{{ n.proxy_http_port }}/{{ n.proxy_socks_port }}</code></div>
+      </td>
       <td>{% if n.status == 'online' %}<span class="badge bg-success">online</span>
           {% elif n.status == 'offline' %}<span class="badge bg-danger">offline</span>
           {% else %}<span class="badge bg-secondary">?</span>{% endif %}</td>
@@ -46,6 +102,7 @@
           <button class="btn btn-sm btn-outline-danger" title="Удалить"><i class="bi bi-trash"></i></button></form>
       </td>
     </tr>
+    {% endif %}
   {% else %}
     <tr><td colspan="5" class="text-center text-secondary py-4">Пока пусто — добавьте первую ноду</td></tr>
   {% endfor %}
@@ -53,8 +110,10 @@
 </table>
 
 <div class="alert alert-secondary small">
-  <b>Подсказка:</b> Control URL — адрес control API ноды (домен Railway-сервиса с <code>ROLE=node</code>),
-  токен — значение <code>NODE_TOKEN</code> этой ноды. Host и порты прокси — это внешний
-  <code>host:port</code> из TCP Proxy Railway (отдельно для HTTP и SOCKS5).
+  <b>Прокси-нода (Railway):</b> Control URL — домен Railway-сервиса с <code>ROLE=node</code>,
+  токен — его <code>NODE_TOKEN</code>, host:порты — внешние TCP-прокси Railway (отдельно HTTP и SOCKS5).<br>
+  <b>WEB-прокси (Telegram):</b> собственный домен с HTTPS/443 и сервером
+  <code>tproxy-server</code> — деплой по шагам в <code>tgweb/README.md</code>.
+  Ссылка откроется в Telegram Desktop 7.1+ / свежих мобильных клиентах.
 </div>
 {% endblock %}

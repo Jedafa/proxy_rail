@@ -1,0 +1,25 @@
+# Официальный MTProxy (TelegramMessenger/MTProxy) из закреплённого коммита —
+# ровно тот, который использует deploy/install.sh tproxy-server.
+# Код старый: собирается на debian:bullseye (OpenSSL 1.1), на новых дистрибутивах не собирается.
+FROM debian:bullseye AS build
+
+ARG MTPROXY_COMMIT=f36d8af769ffaeac36978d38c2c0f6d1104c2137
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential git libssl-dev zlib1g-dev ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && git clone https://github.com/TelegramMessenger/MTProxy /src \
+    && cd /src && git checkout "${MTPROXY_COMMIT}" \
+    && make -j"$(nproc)" \
+    && install -m 0755 objs/bin/mtproto-proxy /usr/local/bin/mtproto-proxy
+
+FROM debian:bullseye-slim
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --system --no-create-home --shell /usr/sbin/nologin mtproxy || true
+COPY --from=build /usr/local/bin/mtproto-proxy /usr/local/bin/mtproto-proxy
+COPY mtproxy-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh && mkdir -p /data
+EXPOSE 2398
+ENTRYPOINT ["/entrypoint.sh"]

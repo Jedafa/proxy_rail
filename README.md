@@ -13,8 +13,9 @@
 | **node** | `node` | Прокси-сервер: **HTTP**, **HTTPS (CONNECT)**, **SOCKS5** + control API. Клонируй сколько нужно |
 
 Протоколы прокси на ноде: HTTP + HTTPS + SOCKS5 с авторизацией логин/пароль, учёт
-трафика по каждому пользователю. Для Telegram — готовые deep-links `t.me/socks?...`
-(MTProto и TG Web-прокси — в roadmap).
+трафика по каждому пользователю. Для Telegram — готовые deep-links `t.me/socks?...`,
+а также **новый WEB-прокси Telegram** (август 2026, MTProxy внутри HTTPS —
+см. раздел ниже и `tgweb/README.md`).
 
 ```
                 ┌──────────────────────────── Railway ────────────────────────┐
@@ -142,6 +143,28 @@ Docker-образом (`docker run -d -p 8888:8888 -p 1080:1080 -e ROLE=node -e 
 
 ---
 
+## WEB-прокси Telegram (новый тип, бета)
+
+В августе 2026 Telegram представил **WEB-прокси**: MTProxy-трафик упаковывается
+в обычный HTTPS/WebSocket через WebView и не отличается от браузерного трафика
+на сайт. Первый клиент с поддержкой — Telegram Desktop 7.1.
+
+Такой сервер — **не Railway** (нужны свои 80/443 с ACME-сертификатом и MTProxy
+с видимым публичным IP). Он ставится на любой VPS за пять шагов готовым бандлом
+из этого репозитория: **`tgweb/README.md`** (docker-compose: Caddy + официальный
+`tproxy-server` + MTProxy).
+
+После установки на VPS сервер добавляется в менеджер одной командой бота:
+
+```
+/addtgweb web1|tg1.example.com|секрет_32_hex
+```
+
+и дальше `/tgweb` выдаёт готовые ссылки `https://t.me/webproxy?server=...&secret=...`
+и `tg://webproxy?...` — их же с copy-кнопками показывает веб-админка на странице «Ноды».
+
+---
+
 ## Команды бота
 
 | Команда | Описание |
@@ -152,6 +175,9 @@ Docker-образом (`docker run -d -p 8888:8888 -p 1080:1080 -e ROLE=node -e 
 | `/newproxy <нода> [метка]` | создать прокси-доступ, выдать все ссылки |
 | `/proxies` | список всех прокси |
 | `/delproxy <логин>` | удалить прокси (с ноды и из базы) |
+| `/addtgweb Имя\|Домен\|Секрет` | добавить WEB-прокси Telegram |
+| `/tgweb` | список WEB-прокси с готовыми ссылками |
+| `/delnode <имя>` | удалить ноду любого типа (и её прокси) |
 | `/sync <нода>` | перезалить все доступы web на ноду |
 | `/stats` | трафик по нодам + топ пользователей |
 
@@ -188,9 +214,9 @@ Docker-образом (`docker run -d -p 8888:8888 -p 1080:1080 -e ROLE=node -e 
 **Web internal API**:
 - для нод: `POST /api/nodes/register` (`X-Reg-Token`... в теле `reg_token`)
 - для бота (заголовок `X-Bot-Token: <BOT_API_TOKEN>`): `GET/POST /api/bot/nodes`,
-  `POST /api/bot/nodes/check_all`, `POST /api/bot/nodes/{name}/sync`,
-  `POST /api/bot/creds`, `GET /api/bot/creds`, `DELETE /api/bot/creds/{username}`,
-  `GET /api/bot/stats`
+  `GET /api/bot/tgweb`, `POST /api/bot/nodes/check_all`, `POST /api/bot/nodes/{name}/sync`,
+  `DELETE /api/bot/nodes/{name}`, `POST /api/bot/creds`, `GET /api/bot/creds`,
+  `DELETE /api/bot/creds/{username}`, `GET /api/bot/stats`
 
 ## Безопасность
 
@@ -202,8 +228,9 @@ Docker-образом (`docker run -d -p 8888:8888 -p 1080:1080 -e ROLE=node -e 
 
 ## Roadmap
 
-- [ ] MTProto-прокси для Telegram (отдельный порт + deep-link `t.me/proxy?...`)
-- [ ] Новый вид TG Web-прокси (web view)
+- [x] WEB-прокси Telegram (бета: менеджмент в боте/админке + VPS-бандл `tgweb/`)
+- [ ] MTProto-прокси классический (отдельный порт + deep-link `t.me/proxy?...`)
+- [ ] Статистика трафика WEB-прокси (admin_listen tproxy-server)
 - [ ] Лимиты трафика и срока жизни на прокси-доступ
 - [ ] Ротация паролей одной кнопкой
 - [ ] IP-allowlist на нодах

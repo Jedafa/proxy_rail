@@ -1,5 +1,7 @@
 """Сервисный слой core: работа с нодами, прокси-доступами, ссылками."""
 
+from urllib.parse import quote
+
 from . import config, db, security
 
 
@@ -20,15 +22,16 @@ def get_node_by_name(name: str) -> dict | None:
 
 
 def upsert_node(name: str, control_url: str, token: str, proxy_host: str,
-                proxy_http_port: int, proxy_socks_port: int) -> None:
+                proxy_http_port: int, proxy_socks_port: int,
+                kind: str = "proxy") -> None:
     db.execute(
         config.CORE_DB,
-        "INSERT INTO nodes(name, control_url, token, proxy_host, proxy_http_port, proxy_socks_port) "
-        "VALUES(?,?,?,?,?,?) "
-        "ON CONFLICT(name) DO UPDATE SET control_url=excluded.control_url, token=excluded.token, "
-        "proxy_host=excluded.proxy_host, proxy_http_port=excluded.proxy_http_port, "
+        "INSERT INTO nodes(name, kind, control_url, token, proxy_host, proxy_http_port, proxy_socks_port) "
+        "VALUES(?,?,?,?,?,?,?) "
+        "ON CONFLICT(name) DO UPDATE SET kind=excluded.kind, control_url=excluded.control_url, "
+        "token=excluded.token, proxy_host=excluded.proxy_host, proxy_http_port=excluded.proxy_http_port, "
         "proxy_socks_port=excluded.proxy_socks_port",
-        (name, control_url.rstrip("/"), token, proxy_host, proxy_http_port, proxy_socks_port),
+        (name, kind, control_url.rstrip("/"), token, proxy_host, proxy_http_port, proxy_socks_port),
     )
 
 
@@ -50,6 +53,15 @@ async def node_request(node: dict, method: str, path: str, json=None, timeout: f
 
 async def check_node(node: dict) -> bool:
     """Пинг ноды, обновление статуса в БД. Возвращает True если онлайн."""
+    if node.get("kind") == "tgweb":
+        # У WEB-нод нет control API: считаем «онлайн», если задан host и секрет.
+        ok = bool(node.get("proxy_host") and node.get("token"))
+        db.execute(
+            config.CORE_DB,
+            "UPDATE nodes SET status=?, last_check=datetime('now') WHERE id=?",
+            ("online" if ok else "offline", node["id"]),
+        )
+        return ok
     try:
         r = await node_request(node, "GET", "/api/ping", timeout=8)
         ok = r.status_code == 200
@@ -142,6 +154,37 @@ def link_set(node: dict, username: str, password: str) -> dict:
         "http": f"http://{username}:{password}@{host}:{hp}",
         "socks": f"socks5://{username}:{password}@{host}:{sp}",
         "tg": f"https://t.me/socks?server={host}&port={sp}&user={username}&pass={password}",
+    }
+
+
+def _tgweb_client_secret(secret_hex: str, has_base_path: bool) -> str:
+    """Секрет для ссылки WEB-прокси.
+
+    Без base path — чистый hex, как у MTProxy. С base path — помеченная форма:
+    0x70 || secret -> unpadded base64url (см. README tproxy-server, раздел Base Path).
+    """
+    s = (secret_hex or "").strip().lower()
+    if not has_base_path:
+        return s
+    import base64
+    raw = bytes.fromhex(s) if all(c in "0123456789abcdef" for c in s) and len(s) % 2 == 0 else s.encode()
+    return base64.urlsafe_b64encode(b"\x70" + raw).decode().rstrip("=")
+
+
+def tgweb_links(node: dict) -> dict:
+    """Ссылки для WEB-прокси Telegram (новый тип из Telegram Desktop 7.1+, авг. 2026).
+
+    Порт всегда 443 (HTTPS), он в ссылку не входит. server может содержать base path,
+    тогда он процен-encoded, а секрет — помеченная base64url-форма.
+    """
+    server = (node["proxy_host"] or "WEB_HOST_NOT_SET").strip()
+    secret = _tgweb_client_secret(node["token"], "/" in server)
+    server_enc = quote(server, safe="")
+    return {
+        "tme": f"https://t.me/webproxy?server={server_enc}&secret={secret}",
+        "tg": f"tg://webproxy?server={server_enc}&secret={secret}",
+        "server": server,
+        "secret": secret,
     }
 
 

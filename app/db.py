@@ -16,6 +16,7 @@ def init_core(path: str) -> None:
         CREATE TABLE IF NOT EXISTS nodes(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT UNIQUE NOT NULL,
+            kind TEXT DEFAULT 'proxy',
             control_url TEXT NOT NULL,
             token TEXT NOT NULL,
             proxy_host TEXT DEFAULT '',
@@ -37,6 +38,10 @@ def init_core(path: str) -> None:
         );
         """
     )
+    # миграция для БД, созданных до появления kind ('proxy' | 'tgweb')
+    cols = {r["name"] for r in query(path, "PRAGMA table_info(nodes)")}
+    if "kind" not in cols:
+        execute(path, "ALTER TABLE nodes ADD COLUMN kind TEXT DEFAULT 'proxy'")
     con.commit()
     con.close()
 

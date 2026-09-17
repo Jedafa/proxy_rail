@@ -1,0 +1,55 @@
+services:
+  caddy:
+    image: caddy:2-bookworm
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      WEB_HOSTNAME: ${WEB_HOSTNAME}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - tproxy
+
+  tproxy:
+    build:
+      context: .
+      dockerfile: Dockerfile.tproxy
+    restart: unless-stopped
+    environment:
+      WEB_HOSTNAME: ${WEB_HOSTNAME}
+      WEB_SECRET: ${WEB_SECRET}
+      BASE_PATH: ${BASE_PATH:-}
+      CARRIER_MODE: ${CARRIER_MODE:-https}
+    volumes:
+      - tproxy_data:/data
+      - ./site:/srv/site
+    expose:
+      - "8080"
+      - "8081"
+    depends_on:
+      - mtproxy
+
+  mtproxy:
+    build:
+      context: .
+      dockerfile: Dockerfile.mtproxy
+    restart: unless-stopped
+    environment:
+      MTPROXY_WORKERS: ${MTPROXY_WORKERS:-1}
+      MTPROXY_MAX_CONNECTIONS: ${MTPROXY_MAX_CONNECTIONS:-4096}
+      MTPROXY_NAT_INFO: ${MTPROXY_NAT_INFO:-}
+    volumes:
+      - mtproxy_data:/data
+    expose:
+      - "2398"
+
+volumes:
+  caddy_data:
+  caddy_config:
+  tproxy_data:
+  mtproxy_data:
